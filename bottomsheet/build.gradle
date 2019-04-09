@@ -1,0 +1,34 @@
+apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android-extensions'
+apply plugin: 'kotlin-android'
+apply plugin: 'maven'
+
+ext.libVersion = '1.0.0'
+ext.artifactId = 'bottomsheet'
+ext.groupId = "elementx.$artifactId"
+
+uploadArchives {
+    repositories {
+        mavenDeployer {
+            repository(url: "file://$projectDir/maven/")
+            pom.version = project.libVersion
+            pom.groupId = project.groupId
+            pom.artifactId = project.artifactId
+        }
+    }
+}
+
+android {
+    compileSdkVersion 28
+    defaultConfig {
+        minSdkVersion 19
+    }
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
+
+repositories {
+    mavenCentral()
+}
