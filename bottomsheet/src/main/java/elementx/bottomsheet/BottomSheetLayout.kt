@@ -107,7 +107,7 @@ class BottomSheetLayout(context: Context, attributeSet: AttributeSet) : FrameLay
                     val speed = travelY / timerTime
                     val deltaY = event.rawY - oldY
 
-                    if (speed > 5 && (deltaY >= 100 || deltaY <= 100)) {
+                    if (speed > 2.5 && (deltaY >= 100 || deltaY <= 100)) {
                         if (deltaY > 0) it.collapsPanel() else it.expandPanel()
                     } else {
                         val anchor = upperLimit + ((viewHeight - peekHeight) * .7)
