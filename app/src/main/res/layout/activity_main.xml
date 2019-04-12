@@ -24,13 +24,6 @@
         </LinearLayout>
     </ScrollView>
 
-    <View android:layout_width="match_parent"
-          android:layout_height="match_parent"
-          android:background="#41000000"
-          tools:visibility="gone">
-
-    </View>
-
     <include android:layout_width="fill_parent"
              layout="@layout/sheet"
              android:layout_height="300dip"
