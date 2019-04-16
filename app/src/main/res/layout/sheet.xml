@@ -1,9 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-              android:layout_width="match_parent" android:layout_height="wrap_content"
-              android:orientation="vertical" android:background="#FFF">
+<elementx.bottomsheet.BottomSheetLayout xmlns:android="http://schemas.android.com/apk/res/android"
+                                        android:layout_width="match_parent" android:layout_height="300dip"
+                                        android:orientation="vertical" android:background="#FA9B9B">
     <TextView
             android:text="TextView"
-            android:layout_width="wrap_content"
-            android:layout_height="400dip" android:id="@+id/textView3"/>
-</LinearLayout>
+            android:layout_width="900dip"
+            android:layout_height="match_parent" android:id="@+id/textView3"/>
+</elementx.bottomsheet.BottomSheetLayout>

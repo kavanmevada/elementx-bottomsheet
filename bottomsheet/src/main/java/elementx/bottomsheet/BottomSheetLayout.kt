@@ -1,197 +1,182 @@
 package elementx.bottomsheet
 
+import android.animation.ValueAnimator
 import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
-import android.view.animation.DecelerateInterpolator
-import android.widget.FrameLayout
+import android.widget.LinearLayout
 import elementx.ui.bottomsheet.R
 
 
-enum class BottomSheetBehavior {
-    STATE_DRAGGING, STATE_SETTLING, STATE_EXPANDED, STATE_COLLAPSED
-}
+/**
+ * Created by quentin on 07/11/2017.
+ */
+class BottomSheetLayout : LinearLayout {
+    constructor(context: Context) : super(context) {
+        initView(null)
+    }
 
-class BottomSheetLayout(context: Context, attributeSet: AttributeSet) : FrameLayout(context, attributeSet),
-    View.OnTouchListener {
+    constructor(context: Context, attrs: AttributeSet?) : super(context, attrs) {
+        initView(attrs)
+    }
 
-    private var parentView: View = this
-    var sheetView: View? = null
-    var overlayScreen: View? = null
-
-    private var dY = 0f
-    private var timer = 0L
-    private var oldY = 0f
-    private var peekHeight = 0
-
-    private var parentHeight = 0
-    private var viewHeight = 0
-
-    private var upperLimit = 0
-    private var lowerLimit = 0
-    private var travelY: Float = 0.0f
-
-    var eventListener: BottomSheetCallback? = null
-
-    private var mState: BottomSheetBehavior = BottomSheetBehavior.STATE_EXPANDED
-
-    init {
-        val attrsArray = intArrayOf(R.attr.behavior_peekHeight)
-        val ta = context.obtainStyledAttributes(attributeSet, attrsArray)
-        peekHeight = ta.getDimensionPixelSize(0, 0)
-        ta.recycle()
+    constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(context, attrs, defStyleAttr) {
+        initView(attrs)
     }
 
 
-    override fun onLayout(changed: Boolean, l: Int, t: Int, r: Int, b: Int) {
-        super.onLayout(changed, l, t, r, b)
+    private var valueAnimator = ValueAnimator()
+    private var collapsedHeight: Int = 0
 
-        sheetView = getChildAt(childCount - 1)
-        sheetView?.setOnTouchListener(this)
+    private var progress = 0f
+    private var startsCollapsed = true
 
-        parentHeight = parentView.height
-        viewHeight = sheetView?.height ?: 0
+    private var scrollTranslationY = 0f
+    private var userTranslationY = 0f
 
-        if (peekHeight > viewHeight) peekHeight = viewHeight
+    private var isScrollingUp: Boolean = false
 
-        upperLimit = parentHeight - viewHeight
-        lowerLimit = parentHeight - peekHeight
+
+    var animationDuration: Long = 300
+
+
+    private var progressListener: OnProgressListener? = null
+
+
+    override fun setTranslationY(translationY: Float) {
+        userTranslationY = translationY
+        super.setTranslationY(scrollTranslationY + userTranslationY)
     }
 
+    private fun initView(attrs: AttributeSet?) {
+        val a = context.obtainStyledAttributes(attrs, R.styleable.BottomSheetLayout)
 
-    override fun onWindowFocusChanged(hasWindowFocus: Boolean) {
-        super.onWindowFocusChanged(hasWindowFocus)
-        if (hasWindowFocus) {
-            sheetView?.let {
-                if (mState == BottomSheetBehavior.STATE_COLLAPSED) {
-                    it.animate()
-                        .y((parentHeight - peekHeight).toFloat())
-                        .setDuration(0)
-                        .start()
+        collapsedHeight = a.getDimensionPixelSize(R.styleable.BottomSheetLayout_behavior_peekHeight, 0)
+        minimumHeight = Math.max(minimumHeight, collapsedHeight)
+
+        a.recycle()
+
+        setOnTouchListener(touchToDragListener)
+
+        if (height == 0) {
+            addOnLayoutChangeListener(object : OnLayoutChangeListener {
+                override fun onLayoutChange(view: View, i: Int, i1: Int, i2: Int, i3: Int, i4: Int, i5: Int, i6: Int, i7: Int) {
+                    removeOnLayoutChangeListener(this)
+                    animate(0f)
                 }
-            }
-            overlayScreen?.setOverlay(0f)
+            })
+        } else {
+            animate(0f)
         }
+    }
 
+    //1 is expanded, 0 is collapsed
+    private fun animate(progress: Float) {
+        this.progress = progress
+        val height = height
+        val distance = height - collapsedHeight
+        scrollTranslationY = distance * (1 - progress)
+        super.setTranslationY(scrollTranslationY + userTranslationY)
+        progressListener?.onProgress(progress)
+    }
+
+    private fun animateScroll(firstPos: Float, touchPos: Float) {
+        val distance = touchPos - firstPos
+        val height = height
+        val totalDistance = height - collapsedHeight
+        var progress = this.progress
+        if (!startsCollapsed) {
+            isScrollingUp = false
+            progress = Math.max(0f, 1 - distance / totalDistance)
+        } else if (startsCollapsed) {
+            isScrollingUp = true
+            progress = Math.min(1f, -distance / totalDistance)
+        }
+        progress = Math.max(0f, Math.min(1f, progress))
+        animate(progress)
+    }
+
+    private fun animateScrollEnd() {
+        if (valueAnimator.isRunning) valueAnimator.cancel()
+
+        val progressLimit = if (isScrollingUp) 0.2f else 0.8f
+
+        valueAnimator.apply {
+            if (progress > progressLimit) {
+                setFloatValues(progress, 1f)
+                duration = (animationDuration * (1 - progress)).toLong()
+            } else {
+                setFloatValues(progress, 0f)
+                duration = (animationDuration * progress).toLong()
+            }
+
+            addUpdateListener {
+                val progress = it.animatedValue as Float
+                animate(progress)
+            }
+        }.start()
     }
 
 
-    override fun onTouch(view: View, event: MotionEvent): Boolean {
-        sheetView?.let {
-            when (event.action) {
+
+
+
+    override fun onInterceptTouchEvent(ev: MotionEvent?): Boolean {
+        ev?.let { touchToDragListener.onTouch(this, ev) }
+        return passEventToChild(ev)
+    }
+
+
+    private var startX = 0f
+    private var startY = 0f
+    private fun passEventToChild(ev: MotionEvent?): Boolean {
+        return ev?.let {
+            when (it.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    dY = it.y - event.rawY
-                    oldY = event.rawY
-                    timer = System.currentTimeMillis()
+                    startX = it.rawX
+                    startY = it.rawY
+                    false
+                }
+                MotionEvent.ACTION_MOVE ->
+                    (Math.abs(startX - it.rawX) > 200 || Math.abs(startY - it.rawY) > 200)
+                else -> false
+            }
+        } ?: false
+    }
+
+
+    private val touchToDragListener = object : OnTouchListener {
+
+
+        private var startX: Float = 0.toFloat()
+        private var startY: Float = 0.toFloat()
+        private var startTime: Double = 0.toDouble()
+
+        override fun onTouch(v: View, ev: MotionEvent): Boolean {
+            //val action = MotionEventCompat.getActionMasked(ev)
+            when (ev.action) {
+                MotionEvent.ACTION_DOWN -> if (ev.pointerCount == 1) {
+                    startX = ev.rawX
+                    startY = ev.rawY
+                    startTime = System.currentTimeMillis().toDouble()
+                    startsCollapsed = progress < 0.5
                 }
 
                 MotionEvent.ACTION_MOVE -> {
-                    travelY = event.rawY + dY
-
-                    if (travelY >= upperLimit && travelY <= lowerLimit) {
-                        it.animate()
-                            .y(travelY)
-                            .setDuration(0)
-                            .setUpdateListener(null)
-                            .start()
-                    }
-                    val animatedValue = 1 - (it.y - upperLimit) / (viewHeight - peekHeight)
-                    eventListener?.onSlide(it, animatedValue)
-                    overlayScreen?.setOverlay(animatedValue)
-                    setSheetState(it, BottomSheetBehavior.STATE_DRAGGING)
+                    animateScroll(startY, ev.rawY)
+                    invalidate()
                 }
 
-                MotionEvent.ACTION_UP -> {
-                    val timerTime = System.currentTimeMillis() - timer
-                    val speed = travelY / timerTime
-                    val deltaY = event.rawY - oldY
-
-                    if (speed > 2.5 && (deltaY >= 100 || deltaY <= 100)) {
-                        if (deltaY > 0) it.collapsPanel() else it.expandPanel()
-                    } else {
-                        val anchor = upperLimit + ((viewHeight - peekHeight) * .7)
-                        if (travelY >= anchor) it.collapsPanel() else it.expandPanel()
-                    }
-                }
-
-                else -> return false
+                MotionEvent.ACTION_UP -> animateScrollEnd()
             }
-        }
-        return true
-    }
-
-
-    private fun View.collapsPanel() = animate()
-        .y(lowerLimit.toFloat())
-        .setDuration((150).toLong())
-        .setInterpolator(DecelerateInterpolator())
-        .setUpdateListener {
-            val animatedValue = 1 - (y - upperLimit) / (viewHeight - peekHeight)
-            eventListener?.onSlide(this, animatedValue)
-            overlayScreen?.setOverlay(animatedValue)
-            setSheetState(
-                this, when (animatedValue) {
-                    0f -> BottomSheetBehavior.STATE_COLLAPSED
-                    1f -> BottomSheetBehavior.STATE_EXPANDED
-                    else -> BottomSheetBehavior.STATE_SETTLING
-                }
-            )
-        }
-        .start()
-
-    private fun View.expandPanel() = animate()
-        .y(upperLimit.toFloat())
-        .setDuration((200).toLong())
-        .setInterpolator(DecelerateInterpolator())
-        .setUpdateListener {
-            val animatedValue = 1 - (y - upperLimit) / (viewHeight - peekHeight)
-            eventListener?.onSlide(this, animatedValue)
-            overlayScreen?.setOverlay(animatedValue)
-            setSheetState(
-                this, when (animatedValue) {
-                    0f -> BottomSheetBehavior.STATE_COLLAPSED
-                    1f -> BottomSheetBehavior.STATE_EXPANDED
-                    else -> BottomSheetBehavior.STATE_SETTLING
-                }
-            )
-        }
-        .start()
-
-
-    private fun View.setOverlay(slideOffset: Float) {
-        if (slideOffset == 0f) View.GONE
-        else visibility = View.VISIBLE
-        alpha = slideOffset
-    }
-
-
-    fun show() = sheetView?.expandPanel()
-    fun close() = sheetView?.collapsPanel()
-
-    private fun setSheetState(view: View, state: BottomSheetBehavior) {
-        if (mState != state) {
-            eventListener?.onStateChanged(view, state)
-            mState = state
+            return true
+            //v.parent.requestDisallowInterceptTouchEvent(true) //specific to my project
         }
     }
 
-    fun setState(state: BottomSheetBehavior) {
-        mState = state
+
+    interface OnProgressListener {
+        fun onProgress(progress: Float)
     }
-
-    fun getState() = mState
-
-    fun setPeekHeight(height: Int) {
-        peekHeight = height
-    }
-
-    val sheet get() = sheetView
-
-
-    interface BottomSheetCallback {
-        fun onStateChanged(bottomSheet: View, newState: BottomSheetBehavior)
-        fun onSlide(bottomSheet: View, slideOffset: Float) {}
-    }
-
 }
