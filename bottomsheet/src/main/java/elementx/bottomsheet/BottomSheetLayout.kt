@@ -5,6 +5,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 import elementx.ui.bottomsheet.R
 
@@ -25,7 +26,6 @@ class BottomSheetLayout : LinearLayout {
         initView(attrs)
     }
 
-
     private var valueAnimator = ValueAnimator()
     private var collapsedHeight: Int = 0
 
@@ -36,12 +36,11 @@ class BottomSheetLayout : LinearLayout {
     private var userTranslationY = 0f
 
     private var isScrollingUp: Boolean = false
-
-
     var animationDuration: Long = 300
 
+    var eventListener: BottomSheetCallback? = null
 
-    private var progressListener: OnProgressListener? = null
+    private var mState: BottomSheetBehavior = BottomSheetBehavior.STATE_COLLAPSED
 
 
     override fun setTranslationY(translationY: Float) {
@@ -78,7 +77,8 @@ class BottomSheetLayout : LinearLayout {
         val distance = height - collapsedHeight
         scrollTranslationY = distance * (1 - progress)
         super.setTranslationY(scrollTranslationY + userTranslationY)
-        progressListener?.onProgress(progress)
+
+        eventListener?.onSlide(this, progress)
     }
 
     private fun animateScroll(firstPos: Float, touchPos: Float) {
@@ -95,6 +95,8 @@ class BottomSheetLayout : LinearLayout {
         }
         progress = Math.max(0f, Math.min(1f, progress))
         animate(progress)
+
+        setSheetState(this, BottomSheetBehavior.STATE_DRAGGING)
     }
 
     private fun animateScrollEnd() {
@@ -111,9 +113,15 @@ class BottomSheetLayout : LinearLayout {
                 duration = (animationDuration * progress).toLong()
             }
 
+            interpolator = DecelerateInterpolator()
             addUpdateListener {
                 val progress = it.animatedValue as Float
                 animate(progress)
+                setSheetState(this@BottomSheetLayout, when (progress) {
+                    0f -> BottomSheetBehavior.STATE_COLLAPSED
+                    1f -> BottomSheetBehavior.STATE_EXPANDED
+                    else -> BottomSheetBehavior.STATE_SETTLING
+                })
             }
         }.start()
     }
@@ -180,7 +188,19 @@ class BottomSheetLayout : LinearLayout {
     }
 
 
-    interface OnProgressListener {
-        fun onProgress(progress: Float)
+    private fun setSheetState(view: View, state: BottomSheetBehavior) {
+        if (mState != state) {
+            eventListener?.onStateChanged(view, state)
+            mState = state
+        }
     }
+
+    interface BottomSheetCallback {
+        fun onStateChanged(bottomSheet: View, newState: BottomSheetBehavior)
+        fun onSlide(bottomSheet: View, slideOffset: Float)
+    }
+}
+
+enum class BottomSheetBehavior {
+    STATE_DRAGGING, STATE_SETTLING, STATE_EXPANDED, STATE_COLLAPSED
 }
