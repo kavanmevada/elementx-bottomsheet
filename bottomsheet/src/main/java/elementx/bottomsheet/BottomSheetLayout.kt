@@ -195,6 +195,8 @@ class BottomSheetLayout : LinearLayout {
         }
     }
 
+    val state get() = mState
+
     interface BottomSheetCallback {
         fun onStateChanged(bottomSheet: View, newState: BottomSheetBehavior)
         fun onSlide(bottomSheet: View, slideOffset: Float)
