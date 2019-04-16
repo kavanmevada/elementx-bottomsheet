@@ -24,7 +24,6 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
-import elementx.ui.bottomsheet.R
 
 
 class BottomSheetLayout : LinearLayout {
@@ -41,20 +40,20 @@ class BottomSheetLayout : LinearLayout {
     }
 
     private var valueAnimator = ValueAnimator()
-    private var collapsedHeight: Int = 0
+    private var peekHeight: Int = 0
 
     private var progress = 0f
-    private var startsCollapsed = true
 
     private var scrollTranslationY = 0f
     private var userTranslationY = 0f
 
     private var isScrollingUp: Boolean = false
-    var animationDuration: Long = 300
+    var animationDuration: Long = 450
 
     var eventListener: BottomSheetCallback? = null
 
     private var mState: BottomSheetBehavior = BottomSheetBehavior.STATE_COLLAPSED
+    private var startsCollapsed = true
 
 
     override fun setTranslationY(translationY: Float) {
@@ -65,30 +64,27 @@ class BottomSheetLayout : LinearLayout {
     private fun initView(attrs: AttributeSet?) {
         val a = context.obtainStyledAttributes(attrs, R.styleable.BottomSheetLayout)
 
-        collapsedHeight = a.getDimensionPixelSize(R.styleable.BottomSheetLayout_behavior_peekHeight, 0)
-        minimumHeight = Math.max(minimumHeight, collapsedHeight)
+        peekHeight = a.getDimensionPixelSize(R.styleable.BottomSheetLayout_behavior_peekHeight, 0)
+        minimumHeight = Math.max(minimumHeight, peekHeight)
 
         a.recycle()
 
         setOnTouchListener(touchToDragListener)
 
-        if (height == 0) {
-            addOnLayoutChangeListener(object : OnLayoutChangeListener {
-                override fun onLayoutChange(view: View, i: Int, i1: Int, i2: Int, i3: Int, i4: Int, i5: Int, i6: Int, i7: Int) {
-                    removeOnLayoutChangeListener(this)
-                    animate(0f)
-                }
-            })
-        } else {
-            animate(0f)
-        }
+        if (height == 0) addOnLayoutChangeListener(object : OnLayoutChangeListener {
+            override fun onLayoutChange(
+                view: View, i: Int, i1: Int, i2: Int, i3: Int, i4: Int, i5: Int, i6: Int, i7: Int) {
+                removeOnLayoutChangeListener(this)
+                animate(0f)
+            }
+        }) else animate(0f)
     }
+
 
     //1 is expanded, 0 is collapsed
     private fun animate(progress: Float) {
         this.progress = progress
-        val height = height
-        val distance = height - collapsedHeight
+        val distance = measuredHeight - peekHeight
         scrollTranslationY = distance * (1 - progress)
         super.setTranslationY(scrollTranslationY + userTranslationY)
 
@@ -97,8 +93,7 @@ class BottomSheetLayout : LinearLayout {
 
     private fun animateScroll(firstPos: Float, touchPos: Float) {
         val distance = touchPos - firstPos
-        val height = height
-        val totalDistance = height - collapsedHeight
+        val totalDistance = measuredHeight - peekHeight
         var progress = this.progress
         if (!startsCollapsed) {
             isScrollingUp = false
@@ -115,35 +110,13 @@ class BottomSheetLayout : LinearLayout {
 
     private fun animateScrollEnd() {
         if (valueAnimator.isRunning) valueAnimator.cancel()
-
-        val progressLimit = if (isScrollingUp) 0.2f else 0.8f
-
-        valueAnimator.apply {
-            if (progress > progressLimit) {
-                setFloatValues(progress, 1f)
-                duration = (animationDuration * (1 - progress)).toLong()
-            } else {
-                setFloatValues(progress, 0f)
-                duration = (animationDuration * progress).toLong()
-            }
-
-            interpolator = DecelerateInterpolator()
-            addUpdateListener {
-                val progress = it.animatedValue as Float
-                animate(progress)
-                setSheetState(this@BottomSheetLayout, when (progress) {
-                    0f -> BottomSheetBehavior.STATE_COLLAPSED
-                    1f -> BottomSheetBehavior.STATE_EXPANDED
-                    else -> BottomSheetBehavior.STATE_SETTLING
-                })
-            }
-        }.start()
+        val progressLimit = if (isScrollingUp) 0.1f else 0.9f
+        if (progress > progressLimit) show() else close()
     }
 
 
-
     override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        ev?.let { touchToDragListener.onTouch(this, ev) }
+        ev?.let { when (ev.action) { MotionEvent.ACTION_UP -> animateScrollEnd() } }
         return super.dispatchTouchEvent(ev)
     }
 
@@ -164,8 +137,12 @@ class BottomSheetLayout : LinearLayout {
                     startY = it.rawY
                     false
                 }
-                MotionEvent.ACTION_UP ->
-                    (Math.abs(startX - it.rawX) > 0 || Math.abs(startY - it.rawY) > 0)
+                // Only Allow click on child while COLLAPSED or EXPANDED
+                MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> !(progress == 1f || progress == 0f)
+//                MotionEvent.ACTION_MOVE -> {
+//                    if (progress==1f) false else true
+//                }
+//                MotionEvent.ACTION_UP -> (Math.abs(startX - it.rawX) > 50 || Math.abs(startY - it.rawY) > 50)
                 else -> false
             }
         } ?: false
@@ -182,9 +159,9 @@ class BottomSheetLayout : LinearLayout {
         override fun onTouch(v: View, ev: MotionEvent): Boolean {
             //val action = MotionEventCompat.getActionMasked(ev)
             when (ev.action) {
-                MotionEvent.ACTION_DOWN -> if (ev.pointerCount == 1) {
+                MotionEvent.ACTION_DOWN -> {
                     startX = ev.rawX
-                    startY = ev.rawY
+                    startY = ev.rawY//+10 // plus value create lift on touch which make feel like ready to open
                     startTime = System.currentTimeMillis().toDouble()
                     startsCollapsed = progress < 0.5
                 }
@@ -194,64 +171,51 @@ class BottomSheetLayout : LinearLayout {
                     invalidate()
                 }
 
-                MotionEvent.ACTION_UP -> animateScrollEnd()
+                MotionEvent.ACTION_UP -> {
+                    animateScrollEnd()
+                    performClick()
+                }
             }
             return true
             //v.parent.requestDisallowInterceptTouchEvent(true) //specific to my project
         }
     }
 
-
-    private fun toggle() {
-        if (valueAnimator.isRunning) {
-            valueAnimator.cancel()
-        }
-        val duration: Long
-        valueAnimator = if (progress > 0.5f) {
-            duration = (animationDuration * progress).toLong()
-            ValueAnimator.ofFloat(progress, 0f)
-        } else {
-            duration = (animationDuration * (1 - progress)).toLong()
-            ValueAnimator.ofFloat(progress, 1f)
-        }
-
-        valueAnimator.addUpdateListener { animation ->
-            val progress = animation.animatedValue as Float
-            animate(progress)
-        }
-
-        valueAnimator.duration = duration
-
-        valueAnimator.start()
-    }
-
-    fun close() {
+    private fun animateTranslate(toState: BottomSheetBehavior) {
         if (valueAnimator.isRunning) valueAnimator.cancel()
-        valueAnimator = ValueAnimator.ofFloat(progress, 0f).apply {
+
+        valueAnimator.apply {
+            interpolator = DecelerateInterpolator()
+
+            if (toState == BottomSheetBehavior.STATE_COLLAPSED) {
+                setFloatValues(progress, 0f)
+                duration = (animationDuration * progress).toLong()
+            } else if (toState == BottomSheetBehavior.STATE_EXPANDED) {
+                setFloatValues(progress, 1f)
+                duration = (animationDuration * (1 - progress)).toLong()
+            }
+
             addUpdateListener { animation ->
                 val progress = animation.animatedValue as Float
                 animate(progress)
+                setSheetState(
+                    this@BottomSheetLayout, when (progress) {
+                        0f -> BottomSheetBehavior.STATE_COLLAPSED
+                        1f -> BottomSheetBehavior.STATE_EXPANDED
+                        else -> BottomSheetBehavior.STATE_SETTLING
+                    }
+                )
             }
-
-            duration = (animationDuration * progress).toLong()
-        }
-
-        valueAnimator.start()
+        }.start()
     }
 
-    fun show() {
+    fun show() = animateTranslate(BottomSheetBehavior.STATE_EXPANDED)
+    fun close() = animateTranslate(BottomSheetBehavior.STATE_COLLAPSED)
+
+    fun toggle() {
         if (valueAnimator.isRunning) valueAnimator.cancel()
-        valueAnimator = ValueAnimator.ofFloat(progress, 1f).apply {
-            addUpdateListener { animation ->
-                val progress = animation.animatedValue as Float
-                animate(progress)
-            }
-            duration = (animationDuration * (1 - progress)).toLong()
-        }
-
-        valueAnimator.start()
+        if (progress > 0.5f) close() else show()
     }
-
 
     private fun setSheetState(view: View, state: BottomSheetBehavior) {
         if (mState != state) {
@@ -261,6 +225,12 @@ class BottomSheetLayout : LinearLayout {
     }
 
     val state get() = mState
+
+    fun setState(state: BottomSheetBehavior) {
+        mState = state
+        if (state == BottomSheetBehavior.STATE_COLLAPSED) startsCollapsed = true
+        else if (state == BottomSheetBehavior.STATE_COLLAPSED) startsCollapsed = false
+    }
 
     interface BottomSheetCallback {
         fun onStateChanged(bottomSheet: View, newState: BottomSheetBehavior)
