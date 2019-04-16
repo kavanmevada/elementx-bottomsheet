@@ -202,6 +202,57 @@ class BottomSheetLayout : LinearLayout {
     }
 
 
+    private fun toggle() {
+        if (valueAnimator.isRunning) {
+            valueAnimator.cancel()
+        }
+        val duration: Long
+        valueAnimator = if (progress > 0.5f) {
+            duration = (animationDuration * progress).toLong()
+            ValueAnimator.ofFloat(progress, 0f)
+        } else {
+            duration = (animationDuration * (1 - progress)).toLong()
+            ValueAnimator.ofFloat(progress, 1f)
+        }
+
+        valueAnimator.addUpdateListener { animation ->
+            val progress = animation.animatedValue as Float
+            animate(progress)
+        }
+
+        valueAnimator.duration = duration
+
+        valueAnimator.start()
+    }
+
+    fun close() {
+        if (valueAnimator.isRunning) valueAnimator.cancel()
+        valueAnimator = ValueAnimator.ofFloat(progress, 0f).apply {
+            addUpdateListener { animation ->
+                val progress = animation.animatedValue as Float
+                animate(progress)
+            }
+
+            duration = (animationDuration * progress).toLong()
+        }
+
+        valueAnimator.start()
+    }
+
+    fun show() {
+        if (valueAnimator.isRunning) valueAnimator.cancel()
+        valueAnimator = ValueAnimator.ofFloat(progress, 1f).apply {
+            addUpdateListener { animation ->
+                val progress = animation.animatedValue as Float
+                animate(progress)
+            }
+            duration = (animationDuration * (1 - progress)).toLong()
+        }
+
+        valueAnimator.start()
+    }
+
+
     private fun setSheetState(view: View, state: BottomSheetBehavior) {
         if (mState != state) {
             eventListener?.onStateChanged(view, state)
