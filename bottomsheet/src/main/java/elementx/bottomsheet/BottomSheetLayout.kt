@@ -120,6 +120,10 @@ class BottomSheetLayout : LinearLayout {
 
 
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        ev?.let { touchToDragListener.onTouch(this, ev) }
+        return super.dispatchTouchEvent(ev)
+    }
 
 
     override fun onInterceptTouchEvent(ev: MotionEvent?): Boolean {
@@ -138,8 +142,8 @@ class BottomSheetLayout : LinearLayout {
                     startY = it.rawY
                     false
                 }
-                MotionEvent.ACTION_MOVE ->
-                    (Math.abs(startX - it.rawX) > 200 || Math.abs(startY - it.rawY) > 200)
+                MotionEvent.ACTION_UP ->
+                    (Math.abs(startX - it.rawX) > 0 || Math.abs(startY - it.rawY) > 0)
                 else -> false
             }
         } ?: false

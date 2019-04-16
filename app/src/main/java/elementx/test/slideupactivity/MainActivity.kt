@@ -12,9 +12,13 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
 
+        scrollView.requestDisallowInterceptTouchEvent(true) //specific to my project
+
         button.setOnClickListener {
             println("Button CLicked!")
         }
+
+
 
     }
 
