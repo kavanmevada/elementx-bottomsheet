@@ -19,25 +19,31 @@
     </ScrollView>
     <elementx.bottomsheet.BottomSheetLayout
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            app:behavior_peekHeight="80dp" android:orientation="vertical"
-            android:layout_alignParentBottom="true" android:gravity="bottom" android:id="@+id/bottomSheetLayout">
-
-        <Button
-                android:text="Button"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content" android:id="@+id/button"/>
-        <HorizontalScrollView
-                android:id="@+id/scrollView"
-                android:layout_width="match_parent"
-                android:layout_height="500dip">
-            <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
-                          android:orientation="vertical">
-                <TextView
-                        android:text="TextView"
-                        android:layout_width="1200dip"
-                        android:layout_height="match_parent" android:id="@+id/textView2" android:background="#FF0"/>
-            </LinearLayout>
-        </HorizontalScrollView>
+            android:layout_height="549dp"
+            app:behavior_peekHeight="80dp"
+            android:orientation="vertical"
+            android:background="#FF0"
+            app:height_withoutPeek="true"
+            android:layout_alignParentBottom="true"
+            android:id="@+id/bottomSheetLayout">
+        <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                      android:orientation="vertical">
+            <Button
+                    android:text="Button"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content" android:id="@+id/button"/>
+            <HorizontalScrollView
+                    android:id="@+id/scrollView"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent">
+                <LinearLayout android:layout_width="match_parent" android:layout_height="match_parent"
+                              android:orientation="vertical">
+                    <TextView
+                            android:text="TextView"
+                            android:layout_width="1200dip"
+                            android:layout_height="match_parent" android:id="@+id/textView2"/>
+                </LinearLayout>
+            </HorizontalScrollView>
+        </LinearLayout>
     </elementx.bottomsheet.BottomSheetLayout>
 </RelativeLayout>

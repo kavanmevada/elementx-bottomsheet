@@ -41,6 +41,7 @@ class BottomSheetLayout : LinearLayout {
 
     private var valueAnimator = ValueAnimator()
     private var peekHeight: Int = 0
+    private var withPeekHeight = false
 
     private var progress = 0f
 
@@ -65,6 +66,8 @@ class BottomSheetLayout : LinearLayout {
         val a = context.obtainStyledAttributes(attrs, R.styleable.BottomSheetLayout)
 
         peekHeight = a.getDimensionPixelSize(R.styleable.BottomSheetLayout_behavior_peekHeight, 0)
+        withPeekHeight = a.getBoolean(R.styleable.BottomSheetLayout_height_withoutPeek, false)
+
         minimumHeight = Math.max(minimumHeight, peekHeight)
 
         a.recycle()
@@ -78,6 +81,14 @@ class BottomSheetLayout : LinearLayout {
                 animate(0f)
             }
         }) else animate(0f)
+
+
+    }
+
+
+    override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
+        //setMeasuredDimension(measuredWidth, measuredHeight+peekHeight)
+        super.onMeasure(widthMeasureSpec, if (withPeekHeight) heightMeasureSpec+peekHeight else heightMeasureSpec)
     }
 
 

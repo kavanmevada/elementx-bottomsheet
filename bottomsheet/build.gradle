@@ -3,7 +3,7 @@ apply plugin: 'kotlin-android-extensions'
 apply plugin: 'kotlin-android'
 apply plugin: 'maven'
 
-ext.libVersion = '1.0.3'
+ext.libVersion = '1.0.2'
 ext.artifactId = 'bottomsheet'
 ext.groupId = "elementx.$artifactId"
 
