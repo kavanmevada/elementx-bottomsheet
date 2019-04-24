@@ -22,6 +22,7 @@ import android.content.Context
 import android.util.AttributeSet
 import android.view.MotionEvent
 import android.view.View
+import android.view.View.OnTouchListener
 import android.view.animation.DecelerateInterpolator
 import android.widget.LinearLayout
 
@@ -49,7 +50,7 @@ class BottomSheetLayout : LinearLayout {
     private var userTranslationY = 0f
 
     private var isScrollingUp: Boolean = false
-    var animationDuration: Long = 450
+    var defaultAnimDuration: Long = 450
 
     var eventListener: BottomSheetCallback? = null
 
@@ -76,7 +77,8 @@ class BottomSheetLayout : LinearLayout {
 
         if (height == 0) addOnLayoutChangeListener(object : OnLayoutChangeListener {
             override fun onLayoutChange(
-                view: View, i: Int, i1: Int, i2: Int, i3: Int, i4: Int, i5: Int, i6: Int, i7: Int) {
+                view: View, i: Int, i1: Int, i2: Int, i3: Int, i4: Int, i5: Int, i6: Int, i7: Int
+            ) {
                 removeOnLayoutChangeListener(this)
                 animate(0f)
             }
@@ -86,9 +88,66 @@ class BottomSheetLayout : LinearLayout {
     }
 
 
+    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
+        ev?.let { touchToDragListener.onTouch(this, ev) }
+        if (horizontalScroll == true || horizontalScroll == null) {
+            return super.dispatchTouchEvent(ev)
+        } else {
+            super.dispatchTouchEvent(ev.apply { this?.action = MotionEvent.ACTION_CANCEL })
+            return true
+        }
+    }
+
+
+    private var horizontalScroll: Boolean? = null
+    private val touchToDragListener = OnTouchListener { v, ev ->
+        when (ev.action) {
+            MotionEvent.ACTION_DOWN -> {
+                startX = ev.rawX
+                startY = ev.rawY//+10 // plus value create lift on touch which make feel like ready to open
+                startTime = System.currentTimeMillis().toDouble()
+                startsCollapsed = progress < 0.5
+            }
+
+            MotionEvent.ACTION_MOVE -> {
+                val deltaX = ev.rawX - startX
+                val deltaY = ev.rawY - startY
+
+                if (horizontalScroll != true) {
+                    delayedAnimateScroll(startY, ev.rawY, 50f)
+                    invalidate()
+                }
+
+
+                if (horizontalScroll == null) {
+                    if (deltaX > 50 || deltaX < -50) horizontalScroll = true
+                    if (deltaY > 50 || deltaY < -50) horizontalScroll = false
+                }
+
+            }
+
+            MotionEvent.ACTION_UP -> {
+                val animationDuration = Math.min(((System.currentTimeMillis() - startTime) * 2).toLong(), 450)
+                animateScrollEnd(animationDuration)
+                performClick()
+                horizontalScroll = null
+            }
+
+            else -> horizontalScroll = null
+        }
+
+        true
+    }
+
+
+    private var startX: Float = 0.toFloat()
+    private var startY: Float = 0.toFloat()
+    private var startTime: Double = 0.toDouble()
+
+
     override fun onMeasure(widthMeasureSpec: Int, heightMeasureSpec: Int) {
         //setMeasuredDimension(measuredWidth, measuredHeight+peekHeight)
-        super.onMeasure(widthMeasureSpec, if (withPeekHeight) heightMeasureSpec+peekHeight else heightMeasureSpec)
+        super.onMeasure(widthMeasureSpec, if (withPeekHeight) heightMeasureSpec + peekHeight else heightMeasureSpec)
     }
 
 
@@ -100,6 +159,14 @@ class BottomSheetLayout : LinearLayout {
         super.setTranslationY(scrollTranslationY + userTranslationY)
 
         eventListener?.onSlide(this, progress)
+    }
+
+    private fun delayedAnimateScroll(firstPos: Float, touchPos: Float, delay: Float) {
+        if (touchPos - firstPos > 100) {
+            animateScroll(startY, touchPos - 100)
+        } else if (touchPos - firstPos < -100) {
+            animateScroll(startY, touchPos + 100)
+        }
     }
 
     private fun animateScroll(firstPos: Float, touchPos: Float) {
@@ -119,80 +186,16 @@ class BottomSheetLayout : LinearLayout {
         setSheetState(this, BottomSheetBehavior.STATE_DRAGGING)
     }
 
-    private fun animateScrollEnd() {
+    private fun animateScrollEnd(animationDuration: Long) {
         if (valueAnimator.isRunning) valueAnimator.cancel()
-        val progressLimit = if (isScrollingUp) 0.1f else 0.9f
-        if (progress > progressLimit) show() else close()
+        val progressLimit = if (isScrollingUp) 0.01f else 0.99f
+
+        if (progress > progressLimit) animateTranslate(BottomSheetBehavior.STATE_EXPANDED, animationDuration)
+        else animateTranslate(BottomSheetBehavior.STATE_COLLAPSED, animationDuration)
     }
 
 
-    override fun dispatchTouchEvent(ev: MotionEvent?): Boolean {
-        ev?.let { when (ev.action) { MotionEvent.ACTION_UP -> animateScrollEnd() } }
-        return super.dispatchTouchEvent(ev)
-    }
-
-
-    override fun onInterceptTouchEvent(ev: MotionEvent?): Boolean {
-        ev?.let { touchToDragListener.onTouch(this, ev) }
-        return passEventToChild(ev)
-    }
-
-
-    private var startX = 0f
-    private var startY = 0f
-    private fun passEventToChild(ev: MotionEvent?): Boolean {
-        return ev?.let {
-            when (it.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = it.rawX
-                    startY = it.rawY
-                    false
-                }
-                // Only Allow click on child while COLLAPSED or EXPANDED
-                MotionEvent.ACTION_MOVE, MotionEvent.ACTION_UP -> !(progress == 1f || progress == 0f)
-//                MotionEvent.ACTION_MOVE -> {
-//                    if (progress==1f) false else true
-//                }
-//                MotionEvent.ACTION_UP -> (Math.abs(startX - it.rawX) > 50 || Math.abs(startY - it.rawY) > 50)
-                else -> false
-            }
-        } ?: false
-    }
-
-
-    private val touchToDragListener = object : OnTouchListener {
-
-
-        private var startX: Float = 0.toFloat()
-        private var startY: Float = 0.toFloat()
-        private var startTime: Double = 0.toDouble()
-
-        override fun onTouch(v: View, ev: MotionEvent): Boolean {
-            //val action = MotionEventCompat.getActionMasked(ev)
-            when (ev.action) {
-                MotionEvent.ACTION_DOWN -> {
-                    startX = ev.rawX
-                    startY = ev.rawY//+10 // plus value create lift on touch which make feel like ready to open
-                    startTime = System.currentTimeMillis().toDouble()
-                    startsCollapsed = progress < 0.5
-                }
-
-                MotionEvent.ACTION_MOVE -> {
-                    animateScroll(startY, ev.rawY)
-                    invalidate()
-                }
-
-                MotionEvent.ACTION_UP -> {
-                    animateScrollEnd()
-                    performClick()
-                }
-            }
-            return true
-            //v.parent.requestDisallowInterceptTouchEvent(true) //specific to my project
-        }
-    }
-
-    private fun animateTranslate(toState: BottomSheetBehavior) {
+    private fun animateTranslate(toState: BottomSheetBehavior, withSpeed: Long = defaultAnimDuration) {
         if (valueAnimator.isRunning) valueAnimator.cancel()
 
         valueAnimator.apply {
@@ -200,10 +203,10 @@ class BottomSheetLayout : LinearLayout {
 
             if (toState == BottomSheetBehavior.STATE_COLLAPSED) {
                 setFloatValues(progress, 0f)
-                duration = (animationDuration * progress).toLong()
+                duration = (withSpeed * progress).toLong()
             } else if (toState == BottomSheetBehavior.STATE_EXPANDED) {
                 setFloatValues(progress, 1f)
-                duration = (animationDuration * (1 - progress)).toLong()
+                duration = (withSpeed * (1 - progress)).toLong()
             }
 
             addUpdateListener { animation ->
